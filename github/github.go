@@ -18,10 +18,22 @@ import (
 type Processor func(data []byte, err error) error
 
 func CallGithubApiV3(method string, url string) (*http.Response, error) {
+	return CallGithubApiV3WithBody(method, url, []byte{})
+}
+
+func CallGithubApiV3WithBody(method string, url string, body []byte) (*http.Response, error) {
 	client := &http.Client{}
 	log.Debug().Msgf("%s url from GITHUB api: %s ", method, url)
-
-	req, err := http.NewRequest(method, url, nil)
+	var req *http.Request
+	var err error
+	if len(body) > 0 {
+		req, err = http.NewRequest(method, url, bytes.NewBuffer(body))
+	} else {
+		req, err = http.NewRequest(method, url, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("Authorization", "token "+GetToken())
 	req.Header.Add("Accept", "application/vnd.github.antiope-preview+json")
 	if err != nil {
@@ -46,7 +58,7 @@ func CallGithubApiV3(method string, url string) (*http.Response, error) {
 
 func ReadGithubApiV3(url string) ([]byte, error) {
 	client := &http.Client{}
-	log.Debug().Msgf("Reading url from GITHUB api: %s ", url)
+	log.Debug().Msgf("Reading url from GITHUB api: %s", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("Authorization", "token "+GetToken())
