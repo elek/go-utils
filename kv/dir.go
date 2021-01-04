@@ -87,6 +87,6 @@ func (dir *DirKV) IterateSubTree(prefix string, action IteratorAction) error {
 			if dir.Path == path || info.IsDir() {
 				return nil
 			}
-			return action(path[len(dir.Path)+1:])
+			return action(path[len(dir.Path):])
 		})
 }
