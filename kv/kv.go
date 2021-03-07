@@ -9,6 +9,7 @@ type KV interface {
 	Put(key string, value []byte) error
 	List(prefix string) ([]string, error)
 	IterateAll(action IteratorAction) error
+	Iterate(prefix string, action IteratorAction) error
 	IterateSubTree(prefix string, action IteratorAction) error
 	Contains(key string) bool
 	GetOrDefault(key string, defaultFunc Getter) ([]byte, error)
@@ -40,6 +41,8 @@ func Create(path string) (KV, error) {
 	} else if parts[0] == "pebble" {
 		return CreatePebble(parts[1])
 
+	} else if parts[0] == "sql" {
+		return CreateSqliteKV(parts[1])
 	} else {
 		return nil, errors.New("Unknown protocol " + parts[0])
 	}

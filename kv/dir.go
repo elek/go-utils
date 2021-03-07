@@ -78,6 +78,20 @@ func (dir *DirKV) IterateAll(action IteratorAction) error {
 	return dir.IterateSubTree("", action)
 }
 
+func (dir *DirKV) Iterate(prefix string, action IteratorAction) error {
+	files, err := ioutil.ReadDir(path.Join(dir.Path, prefix))
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		err = action(path.Join(prefix, file.Name()))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (dir *DirKV) IterateSubTree(prefix string, action IteratorAction) error {
 	return filepath.Walk(path.Join(dir.Path, prefix),
 		func(path string, info os.FileInfo, err error) error {
@@ -87,6 +101,6 @@ func (dir *DirKV) IterateSubTree(prefix string, action IteratorAction) error {
 			if dir.Path == path || info.IsDir() {
 				return nil
 			}
-			return action(path[len(dir.Path):])
+			return action(path[len(dir.Path)+1:])
 		})
 }

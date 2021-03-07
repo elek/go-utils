@@ -93,6 +93,43 @@ func (pb *Pebble) GetOrDefault(key string, defaultFunc Getter) ([]byte, error) {
 	return pb.Get(key)
 }
 
+func (pb *Pebble) Iterate(prefix string, action IteratorAction) error {
+	it := pb.db.NewIter(nil)
+	it.SeekGE([]byte(prefix))
+	for {
+		key := string(it.Key())
+		if !strings.HasPrefix(key, prefix) {
+			break
+		}
+		rel := key[len(prefix)+1:]
+		parts := strings.Split(rel, "/")
+		if len(parts) > 1 {
+			subdir := prefix + "/" + parts[0]
+			err := action(subdir)
+			if err != nil {
+				return err
+			}
+			for {
+				it.Next()
+				nextKey := string(it.Key())
+				if !strings.HasPrefix(nextKey, subdir) {
+					break
+				}
+			}
+		} else {
+			err := action(key)
+			if err != nil {
+				return err
+			}
+			if !it.Next() {
+				break
+			}
+		}
+
+	}
+	return nil
+}
+
 func (pb *Pebble) IterateAll(action IteratorAction) error {
 	it := pb.db.NewIter(nil)
 	it.First()
