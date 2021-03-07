@@ -72,6 +72,32 @@ func (jira *Jira) DoTransition(jiraId string, transitionId string, updated map[s
 	return body, nil
 }
 
+func (jira *Jira) ListProject() ([]byte, error) {
+	queryUrl := jira.Url + "/rest/api/2/project"
+
+	client := &http.Client{}
+	log.Debug().Msgf("%s url from JIRA api: %s %s ", "GET", jira.Url, queryUrl)
+	req, err := jira.CreateRequest("GET", queryUrl, nil)
+
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode > 299 {
+		log.Error().Msgf(string(body))
+		return nil, errors.New("Reading url is failed (" + resp.Status + "): " + queryUrl)
+	}
+	return body, nil
+}
+
 func (jira *Jira) GetJira(id string) ([]byte, error) {
 	queryUrl := jira.Url + "/rest/api/2/issue/" + id + "?expand=editmeta"
 
