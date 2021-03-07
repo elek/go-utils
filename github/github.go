@@ -12,7 +12,9 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Processor func(data []byte, err error) error
@@ -79,6 +81,22 @@ func ReadGithubApiV3(url string) ([]byte, error) {
 		log.Error().Msgf(string(body))
 		return nil, errors.New("Reading url is failed (" + resp.Status + "): " + url)
 	}
+	rateLimitString := resp.Header.Get("X-Ratelimit-Remaining")
+	rateLimit, err := strconv.Atoi(rateLimitString)
+	if err == nil && rateLimit < 300 {
+		resetTimestamp, err := strconv.ParseInt(resp.Header.Get("X-Ratelimit-Reset"), 10, 64)
+		if err != nil {
+			return body, nil
+		}
+		now := time.Now()
+		resetTime := time.Unix(resetTimestamp, 0)
+		if resetTime.After(now) {
+			log.Info().Msg("Rate-limit threshold exceeded. Current limit: " + rateLimitString + " Waiting " + strconv.Itoa(int(resetTime.Sub(now).Seconds())) + " seconds")
+			time.Sleep(resetTime.Sub(now))
+		}
+	}
+	log.Info().Msg("Rate limit: " + rateLimitString)
+
 	return body, nil
 }
 
