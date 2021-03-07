@@ -63,8 +63,8 @@ func MS(data interface{}, keys ...string) string {
 	return fmt.Sprintf("%s", value)
 }
 
-//Return value as pointer to a timestamp (milliseconds)
-func MTP(layout string, data interface{}, keys ...string) *int64 {
+//Return value as pointer to a timestamp (milliseconds) epoch
+func MEP(layout string, data interface{}, keys ...string) *int64 {
 	value := MSP(data, keys...)
 	if value == nil {
 		return nil
@@ -77,14 +77,16 @@ func MTP(layout string, data interface{}, keys ...string) *int64 {
 	return &res
 }
 
-func MT(layout string, data interface{}, keys ...string) int64 {
-	value := MTP(layout, data, keys...)
+//return value as a timestamp (milliseconds) epoch
+func ME(layout string, data interface{}, keys ...string) int64 {
+	value := MEP(layout, data, keys...)
 	if value == nil {
 		return 0
 	}
 	return *value
 }
 
+//return value as a string pointer (optional)
 func MSP(data interface{}, keys ...string) *string {
 	value := M(data, keys...)
 	if value == nil {
@@ -94,6 +96,7 @@ func MSP(data interface{}, keys ...string) *string {
 	return &res
 }
 
+//return number value as a string
 func MNS(data interface{}, keys ...string) string {
 	val := M(data, keys...)
 	if val == nil {
@@ -121,7 +124,11 @@ func MBS(data interface{}, keys ...string) string {
 }
 
 func MN(data interface{}, keys ...string) int {
-	return int(M(data, keys...).(float64))
+	raw := M(data, keys...)
+	if raw == nil {
+		return 0
+	}
+	return int(raw.(float64))
 }
 
 func MN32(data interface{}, keys ...string) int32 {
@@ -129,7 +136,21 @@ func MN32(data interface{}, keys ...string) int32 {
 }
 
 func MN64(data interface{}, keys ...string) int64 {
-	return int64(M(data, keys...).(float64))
+	rawValue := M(data, keys...)
+	switch rawValue.(type) {
+	case float64:
+		return int64(M(data, keys...).(float64))
+	case string:
+		value, err := strconv.Atoi(rawValue.(string))
+		println(rawValue.(string))
+		if err != nil {
+			panic("Couldn't get value as number")
+		}
+
+		return int64(value)
+	default:
+		panic(fmt.Sprintf("I don't know about type %T!", rawValue))
+	}
 }
 
 func L(data interface{}) []interface{} {
