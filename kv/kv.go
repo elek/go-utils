@@ -10,17 +10,21 @@ type KV interface {
 	List(prefix string) ([]string, error)
 	IterateAll(action IteratorAction) error
 	Iterate(prefix string, action IteratorAction) error
+	IterateValues(prefix string, action KeyValueIteratorAction) error
 	IterateSubTree(prefix string, action IteratorAction) error
 	Contains(key string) bool
 	GetOrDefault(key string, defaultFunc Getter) ([]byte, error)
 	Get(prefix string) ([]byte, error)
 	GetReader(prefix string) (io.Reader, error)
 	IsChanged(since time.Time, prefix string) (bool, error)
+	Close() error
 }
 
 type Getter func(key string) ([]byte, error)
 
 type IteratorAction func(key string) error
+
+type KeyValueIteratorAction func(key string, value []byte) error
 
 func Copy(from KV, to KV) error {
 	return from.IterateAll(func(key string) error {
@@ -38,10 +42,7 @@ func Create(path string) (KV, error) {
 		return &DirKV{
 			Path: parts[0],
 		}, nil
-	} else if parts[0] == "pebble" {
-		return CreatePebble(parts[1])
-
-	} else if parts[0] == "sql" {
+	}  else if parts[0] == "sql" {
 		return CreateSqliteKV(parts[1])
 	} else {
 		return nil, errors.New("Unknown protocol " + parts[0])

@@ -10,9 +10,10 @@ import (
 
 type Pebble struct {
 	db *pebble.DB
+
 }
 
-func CreatePebble(dir string) (KV, error) {
+func CreatePebble(dir string) (*Pebble, error) {
 	db, err := pebble.Open(dir, &pebble.Options{
 		ErrorIfNotExists: false,
 	})
@@ -162,5 +163,9 @@ func (pb *Pebble) IterateSubTree(prefix string, action IteratorAction) error {
 			break
 		}
 	}
+	return nil
+}
+
+func (pb *Pebble) Close() error {
 	return nil
 }

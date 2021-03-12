@@ -6,16 +6,23 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"path"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type SqliteKV struct {
-	db          *sql.DB
-	prefixCache map[string]bool
+	db                     *sql.DB
+	prefixCache            map[string]bool
+	transactionSize        int
+	currentTransactionSize int
+	tx                     *sql.Tx
 }
 
-func CreateSqliteKV(dbFile string) (*SqliteKV, error) {
-	db, err := sql.Open("sqlite3", dbFile)
+func CreateSqliteKV(uri string) (*SqliteKV, error) {
+	uriparts := strings.Split(uri, "?")
+
+	db, err := sql.Open("sqlite3", uriparts[0]+"?_sync=0")
 	if err != nil {
 		return nil, err
 	}
@@ -28,22 +35,80 @@ func CreateSqliteKV(dbFile string) (*SqliteKV, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &SqliteKV{
+	res := &SqliteKV{
 		db:          db,
 		prefixCache: make(map[string]bool),
-	}, nil
+	}
+	if len(uriparts) > 1 {
+		for _, param := range strings.Split(uriparts[1], "&") {
+			paramparts := strings.Split(param, "=")
+			if paramparts[0] == "batch" {
+				res.transactionSize, err = strconv.Atoi(paramparts[1])
+				if err != nil {
+					return res, err
+				}
+			}
+		}
+	}
+	return res, nil
 }
-func (s SqliteKV) Put(key string, value []byte) error {
+
+func (s *SqliteKV) ExecQuery(query string, args ...interface{}) error {
+	var err error
+	if s.transactionSize > 0 {
+		if s.tx == nil {
+			s.transactionSize = 0
+			tx, err := s.db.Begin()
+			s.tx = tx
+			if err != nil {
+				return err
+			}
+		}
+		_, err := s.tx.Exec(query, args...)
+		if err != nil {
+			return err
+		}
+		s.currentTransactionSize++
+		if s.currentTransactionSize >= s.transactionSize {
+			err = s.tx.Commit()
+			if err != nil {
+				return err
+			}
+			s.tx = nil
+		}
+	} else {
+		_, err = s.db.Exec(query, args...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SqliteKV) Commit() error {
+	if s.tx != nil {
+		err := s.tx.Commit()
+		if err != nil {
+			return err
+		}
+		s.tx = nil
+		s.currentTransactionSize = 0
+	}
+	return nil
+
+}
+
+func (s *SqliteKV) Put(key string, value []byte) error {
 	if _, found := s.prefixCache[path.Dir(key)]; !found {
 		for parent := path.Dir(key); parent != "."; parent = path.Dir(parent) {
-			_, err := s.db.Exec("INSERT INTO prefix (prefix,key) VALUES (?,?) ON CONFLICT DO NOTHING", path.Dir(parent), path.Base(parent))
+			err := s.ExecQuery("INSERT INTO prefix (prefix,key) VALUES (?,?) ON CONFLICT DO NOTHING", path.Dir(parent), path.Base(parent))
 			if err != nil {
 				return err
 			}
 		}
 		s.prefixCache[path.Dir(key)] = true
 	}
-	_, err := s.db.Exec("INSERT INTO key (prefix,key,value) VALUES (?,?,?)", path.Dir(key), path.Base(key), value)
+	err := s.ExecQuery("INSERT INTO key (prefix,key,value) VALUES (?,?,?)", path.Dir(key), path.Base(key), value)
 	if err != nil {
 		return err
 	}
@@ -135,6 +200,26 @@ func (s *SqliteKV) Iterate(prefix string, action IteratorAction) error {
 	return nil
 }
 
+func (s *SqliteKV) IterateValues(prefix string, action KeyValueIteratorAction) error {
+	var key, value string
+	res, err := s.db.Query("SELECT key,value FROM prefix WHERE prefix = ?", path.Base(prefix))
+	defer res.Close()
+	if err != nil {
+		return err
+	}
+	for ; res.Next(); {
+		err = res.Scan(&key, &value)
+		if err != nil {
+			return err
+		}
+		err = action(path.Join(prefix, key), []byte(value))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *SqliteKV) IterateSubTree(prefix string, action IteratorAction) error {
 	panic("implement me")
 }
@@ -190,4 +275,14 @@ func (s *SqliteKV) GetReader(prefix string) (io.Reader, error) {
 
 func (s *SqliteKV) IsChanged(since time.Time, prefix string) (bool, error) {
 	panic("implement me")
+}
+
+func (sql *SqliteKV) Close() error {
+	if sql.tx != nil {
+		err := sql.tx.Commit()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

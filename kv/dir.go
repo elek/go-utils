@@ -1,17 +1,18 @@
 package kv
 
 import (
-	"io/ioutil"
 	"io"
-	"time"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 )
 
 type DirKV struct {
 	Path string
 }
+
 
 func (dir *DirKV) Put(key string, value []byte) error {
 	file := path.Join(dir.Path, key)
@@ -61,7 +62,10 @@ func (dir *DirKV) GetOrDefault(key string, defaultFunc Getter) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		dir.Put(key, val)
+		err = dir.Put(key, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return dir.Get(key)
 }
@@ -76,6 +80,24 @@ func (dir *DirKV) IsChanged(since time.Time, prefix string) (bool, error) {
 
 func (dir *DirKV) IterateAll(action IteratorAction) error {
 	return dir.IterateSubTree("", action)
+}
+
+func (dir *DirKV) IterateValues(prefix string, action KeyValueIteratorAction) error {
+	files, err := ioutil.ReadDir(path.Join(dir.Path, prefix))
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		value, err := dir.Get(prefix)
+		if err != nil {
+			return err
+		}
+		err = action(path.Join(prefix, file.Name()), value)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (dir *DirKV) Iterate(prefix string, action IteratorAction) error {
@@ -103,4 +125,8 @@ func (dir *DirKV) IterateSubTree(prefix string, action IteratorAction) error {
 			}
 			return action(path[len(dir.Path)+1:])
 		})
+}
+
+func (dir *DirKV) Close() error {
+	return nil
 }

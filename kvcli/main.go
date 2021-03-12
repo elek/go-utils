@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/rand"
 	util "github.com/elek/go-utils"
 	"github.com/elek/go-utils/kv"
-	"log"
 	"os"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
 )
 import "github.com/urfave/cli/v2"
 
@@ -38,7 +41,20 @@ func main() {
 					if err != nil {
 						return err
 					}
+					defer store.Close()
 					return count(store)
+				},
+			},
+			{
+				Name:  "inserts",
+				Usage: "Stress test to do as much as insert as possible",
+				Action: func(c *cli.Context) error {
+					store, err := kv.Create(c.Args().Get(0))
+					if err != nil {
+						return err
+					}
+					defer store.Close()
+					return inserts(store)
 				},
 			},
 		},
@@ -46,8 +62,39 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
+}
+
+func inserts(store kv.KV) error {
+	buffer := make([]byte, 1204)
+	p := util.CreateProgress()
+	defer p.End()
+	for j := 0; j < 1000; j++ {
+		for i := 0; i < 1000; i++ {
+			_, err := rand.Read(buffer)
+			if err != nil {
+				return err
+			}
+			err = store.Put("key"+strconv.Itoa(j)+"/"+strconv.Itoa(i), buffer)
+			if err != nil {
+				return err
+			}
+			p.Increment()
+		}
+	}
+
+	f, err := os.Create("/tmp/memory.pprof")
+	if err != nil {
+		return err
+	}
+	defer f.Close() // error handling omitted for example
+	runtime.GC()    // get up-to-date statistics
+	if err := pprof.WriteHeapProfile(f); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func copy(from kv.KV, to kv.KV) error {
