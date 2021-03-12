@@ -51,7 +51,6 @@ func main() {
 }
 
 func copy(from kv.KV, to kv.KV) error {
-
 	p := util.CreateProgress()
 	err := from.IterateAll(func(key string) error {
 		value, err := from.Get(key)
