@@ -117,7 +117,7 @@ func (s *SqliteKV) Put(key string, value []byte) error {
 
 func (s *SqliteKV) List(prefix string) ([]string, error) {
 	result := make([]string, 0)
-	res, err := s.db.Query("SELECT key FROM key WHERE prefix = ?", path.Base(prefix))
+	res, err := s.db.Query("SELECT key FROM key WHERE prefix = ?", prefix)
 	if err != nil {
 		return result, err
 	}
@@ -130,7 +130,7 @@ func (s *SqliteKV) List(prefix string) ([]string, error) {
 		result = append(result, path.Join(prefix, key))
 	}
 	res.Close()
-	res, err = s.db.Query("SELECT key FROM prefix WHERE prefix = ?", path.Base(prefix))
+	res, err = s.db.Query("SELECT key FROM prefix WHERE prefix = ?", prefix)
 	if err != nil {
 		return result, err
 	}
@@ -182,7 +182,7 @@ func (s *SqliteKV) Iterate(prefix string, action IteratorAction) error {
 		}
 	}
 	res.Close()
-	res, err = s.db.Query("SELECT key FROM prefix WHERE prefix = ?", path.Base(prefix))
+	res, err = s.db.Query("SELECT key FROM prefix WHERE prefix = ?", prefix)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (s *SqliteKV) Iterate(prefix string, action IteratorAction) error {
 
 func (s *SqliteKV) IterateValues(prefix string, action KeyValueIteratorAction) error {
 	var key, value string
-	res, err := s.db.Query("SELECT key,value FROM prefix WHERE prefix = ?", path.Base(prefix))
+	res, err := s.db.Query("SELECT key,value FROM key WHERE prefix = ?", prefix)
 	defer res.Close()
 	if err != nil {
 		return err

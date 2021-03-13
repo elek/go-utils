@@ -85,10 +85,11 @@ func (dir *DirKV) IterateAll(action IteratorAction) error {
 func (dir *DirKV) IterateValues(prefix string, action KeyValueIteratorAction) error {
 	files, err := ioutil.ReadDir(path.Join(dir.Path, prefix))
 	if err != nil {
-		return err
+		//if no such directory, we can return
+		return nil
 	}
 	for _, file := range files {
-		value, err := dir.Get(prefix)
+		value, err := dir.Get(path.Join(prefix, file.Name()))
 		if err != nil {
 			return err
 		}
